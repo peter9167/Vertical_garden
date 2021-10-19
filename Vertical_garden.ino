@@ -1,13 +1,13 @@
 #include <TimerOne.h>
 
 #include <SoftwareSerial.h>        // 블루투스 시리얼 통신 라이브러리 추가
-#define BT_RXD 8
-#define BT_TXD 7
-SoftwareSerial bluetooth(BT_RXD, BT_TXD);        // 블루투스 설정 BTSerial(Tx, Rx)
+#define BT_RXD 4
+#define BT_TXD 5
+SoftwareSerial BTserial(BT_RXD, BT_TXD);        // 블루투스 설정 BTSerial(Tx, Rx)
 
 #include <DHT.h>
 #define DHTPIN 2
-#define DHTTYPE DHT11
+#define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
 int pir = 3; //인체 감지 센서
@@ -69,4 +69,49 @@ void timerIsr(){
   hum_count += 1;
   temp_count += 1;
   light_count += 1;
+}
+
+void hum(int h){
+  Serial.print("습도:");
+  Serial.println(h); // 습도 값 출력
+}
+
+void temp(int t){
+  Serial.print("온도:");
+  Serial.println(t); // 온도 값 출력
+  if(t >= 26){
+    digitalWrite(fan, HIGH);
+  } else{
+    digitalWrite(fan, LOW);
+  }
+}
+
+void light(int l){
+  Serial.print("조도:");
+  Serial.println(l);
+  if(l >= 400){
+    for(int i=0; i<NUMPIXELS; i++) {
+      pixels.setPixelColor(i, pixels.Color(255, 150, 0));
+      pixels.show();
+      delay(DELAYVAL); // Pause before next pass through loop
+    }
+  } else{
+    for(int i=0; i<NUMPIXELS; i++) {
+      pixels.setPixelColor(i, pixels.Color(0, 0, 0));
+      pixels.show();
+      delay(DELAYVAL); // Pause before next pass through loop
+    }
+  }
+}
+
+void PUMP(){
+  if(++Pcount >= 10 )
+  {
+    Pcount = 0;
+    digitalWrite(13,HIGH);
+  }
+  else 
+  {
+    digitalWrite(13,LOW);
+  }
 }
