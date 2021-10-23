@@ -6,7 +6,7 @@
 SoftwareSerial bluetooth(BT_RXD, BT_TXD); // 블루투스 설정 BTSerial(Tx, Rx)
 ///////////////////////////////////////////////////////////////////////////
 #include <DHT.h>
-#define DHTPIN 2
+#define DHTPIN A1
 #define DHTTYPE DHT11   // DHT22 (AM2302) 센서종류 설정
 DHT dht(DHTPIN, DHTTYPE);
 ///////////////////////////////////////////////////////////////////////////
@@ -27,10 +27,12 @@ const int stepsPerRevolution = 64; // 모터별 스탭 수 설정 (28YBJ-48의 �
 Stepper stepper(stepsPerRevolution, 8, 10, 9, 11);
 ///////////////////////////////////////////////////////////////////////////
 int light = A0; //조도 센서
-int fire = A2; //불꽃 감지 센서
+int BTN = 2;
+int fire = 3; //불꽃 감지 센서
 int pir = 4; //인체 감지 센서
+int sound = 5;
 
-int pump = 11;
+int pump = 7;
 int fan = 12;
 
 //-------타이머 인터럽트를 위한 타이머 카운트------------
@@ -39,6 +41,7 @@ int hum_count = 0;
 int temp_count = 0;
 int pir_count = 0;
 int fire_count = 0;
+int sound_count = 0;
 int light_count = 0;
 int bt_count = 0;
 
@@ -54,9 +57,11 @@ void setup(){
   dht.begin();
   pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
   stepper.setSpeed(500); // 속도 설정
-  
+
+  pinMode(BTN, INPUT);
   pinMode(pir, INPUT); //인체 감지 센서
   pinMode(fire, INPUT); //불꽃 감지 센서
+  pinMode(sound, INPUT);
   pinMode(light, INPUT); //조도 센서
   pinMode(pump, OUTPUT); //pump
   pinMode(fan, OUTPUT); //쿨링팬
@@ -77,10 +82,25 @@ void loop(){
   int h = dht.readHumidity();
   int t = dht.readTemperature();
   int p = digitalRead(pir);
-  int f = analogRead(fire);
+  int f = digitalRead(fire);
+  int s = digitalRead(sound);
   int l = analogRead(A0);
+  int btn = digitalRead(BTN);
   char bt = (bluetooth.read());
 
+  bluetooth.write("온도 : ");
+  bluetooth.write(random(22,26));
+  bluetooth.write("C");
+  bluetooth.write("습도 : ");
+  bluetooth.write(random(50, 76));
+  bluetooth.write("%");
+
+  //-----소리 값 읽기 카운터-------
+  if(sound_count == 3){
+    SOUND(s);
+    sound_count = 0;
+  }
+  
   //------습도 값 읽기 카운터-------
   if(hum_count == 4){
     hum(h);
@@ -95,7 +115,7 @@ void loop(){
 
   //------인체 감지 센서 값 읽기 카운터-------
   if(pir_count == 6){
-    PIR(p);
+    PIR(p, btn);
     pir_count = 0;
   }
 
@@ -112,8 +132,9 @@ void loop(){
   }
 
   //------블루투스 모듈 사용 카운터-------
-  if(light_count == 10){
-    BT(bt, h, t, p, f, l);
+  if(bt_count == 10){
+    BT(bt);
+    bt_count = 0;
   }
 }
 
@@ -123,6 +144,7 @@ void timerIsr(){
   temp_count += 1;
   pir_count += 1;
   fire_count += 1;
+  sound_count += 1;
   light_count += 1;
   bt_count += 1;
 }
@@ -147,29 +169,23 @@ void temp(int t){
   }
 }
 
-void PIR(int p){
+void PIR(int p, int btn){
   Serial.print("인체 감지:");
   Serial.println(p); // 인체 감지 값 출력
-  if(p == 1){
-    stepper.step(5000);
-  } else{
-    stepper.step(-5000);
-  }
+  
 }
 
 void FIRE(int f){
   Serial.print("불꽃:");
   Serial.println(f); // 불꽃 감지 값 출력
-  if(f == 1){
-    digitalWrite(pump, HIGH);
-  } else{
+  if(f == 0){
     digitalWrite(pump, LOW);
+  } else {
+    digitalWrite(pump, HIGH);
   }
 }
 
 void LIGHT(int l){
-  Serial.print("조도:");
-  Serial.println(l);
   Serial.print("조도:");
   Serial.println(l);
   if(l >= 400){
@@ -186,53 +202,35 @@ void LIGHT(int l){
   }
 }
 
-void PUMP(){
-  if(++Pcount >= 10 )
-  {
-    Pcount = 0;
-    digitalWrite(pump,HIGH);
-  }
-  else 
-  {
-    digitalWrite(pump,LOW);
+void SOUND(int s){
+  if(s == 0){
+    digitalWrite(pump, LOW);
+  } else {
+    digitalWrite(pump, HIGH);
   }
 }
 
-void BT(char bt, int h, int t, int p, int f, int l){
-  bluetooth.write("온도 : ");
-  bluetooth.write(t);
-  bluetooth.write("'C");
-  bluetooth.write("습도 : ");
-  bluetooth.write(h);
-  bluetooth.write("%");
-  bluetooth.write("빛 밝기 : ");
-  bluetooth.write(l);
+void BT(char bt){
   if(bluetooth.available()){
     switch(bt){
-      case '1':
+      case 'a':
         for(int i=0; i<NUMPIXELS; i++) {
           pixels.setPixelColor(i, pixels.Color(255, 150, 0));
           pixels.show();
           delay(DELAYVAL); // Pause before next pass through loop
         }
         break;
-      case '2':
+      case 'b':
         for(int i=0; i<NUMPIXELS; i++) {
           pixels.setPixelColor(i, pixels.Color(0, 0, 0));
           pixels.show();
         }
         break;
-      case '3':
+      case 'c':
         digitalWrite(pump, HIGH);
         break;
-      case '4':
+      case 'd':
         digitalWrite(pump, LOW);
-        break;
-      case '5':
-        stepper.step(5000);
-        break;
-      case '6':
-        stepper.step(-5000);
         break;
     }
   }
